@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Home</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+    <style>
+        .chatbox {
+            outline: 1px solid silver;
+            min-height: 160px;
+            padding: 0.5em;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="row">
+        <div class="col">
+            <h1 class="mt-3">Jamming With Letters</h1>
+            <hr>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-3">
+
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" name="username" id="username" class="form-control" autocomplete="off">
+            </div>
+
+            <a href="javascript:void(0);" class="btn btn-outline-secondary" id="startBtn">Start Game</a>
+
+            <input type="hidden" name="action" id="action">
+
+        </div>
+        <div class="col-md-5"></div>
+        <div class="col-md-3">
+            <h3>Who's Playing</h3>
+
+            <ul id="online_users">
+
+            </ul>
+        </div>
+    </div>
+
+    <hr>
+
+    <h3>Game</h3>
+    <div id="players" class="card-deck">
+        <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
+            <div class="card-body">
+                <h5 class="card-title">A</h5>
+            </div>
+        </div>
+    </div>
+
+    <div id="dummies" class="card-deck"></div>
+</div>
+
+</body>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW"
+        crossorigin="anonymous"></script>
+
+<script>
+    let socket = null;
+
+    window.onbeforeunload = function() {
+        console.log("Leaving");
+        let jsonData = {};
+        jsonData["action"] = "left";
+        socket.send(JSON.stringify(jsonData))
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        socket = new WebSocket("ws://127.0.0.1:8080/ws");
+
+        socket.onopen = () => {
+            console.log("Successfully connected");
+        }
+
+        socket.onclose = () => {
+            console.log("connection closed");
+        }
+
+        socket.onerror = error => {
+            console.log("there was an error");
+        }
+
+        socket.onmessage = msg => {
+            let data = JSON.parse(msg.data);
+            console.log("Action is", data.action)
+
+            switch (data.action) {
+                case "list_users":
+                    let ul = document.getElementById("online_users")
+                    while (ul.firstChild) ul.removeChild(ul.firstChild);
+
+                    if (data.connected_users.length > 0) {
+                        data.connected_users.forEach(function(item){
+                            let li = document.createElement("li");
+                            li.appendChild(document.createTextNode(item))
+                            ul.appendChild(li);
+                        })
+                    }
+                    break;
+                case "player_beginning_display":
+                    let players = document.getElementById("players")
+                    while (players.firstChild) players.removeChild(players.firstChild)
+
+                    if (data.display_msg.length > 0) {
+                        data.display_msg.forEach(function(item){
+                            let card = document.createElement('div');
+                            card.className = 'card text-white bg-dark mb-3 text-center';
+                            card.style.width = "5rem"
+                            card.innerHTML = `<div class="card-body"><h5 class="card-title">` + item.letter + `</h5></div>`
+                            players.appendChild(card)
+                        })
+                    }
+                    break;
+                case "dummy_beginning_display":
+                    let dummies = document.getElementById("dummies")
+                    while (dummies.firstChild) dummies.removeChild(dummies.firstChild)
+
+                    if (data.display_msg.length > 0) {
+                        data.display_msg.forEach(function(item){
+                            let card = document.createElement('div');
+                            card.className = 'card text-white bg-dark mb-3 text-center';
+                            card.style.width = "5rem"
+                            card.innerHTML = `<div class="card-body"><h5 class="card-title">` + item.letter + `</h5></div>`
+                            dummies.appendChild(card)
+                        })
+                    }
+                    break;
+            }
+        }
+
+        let userInput = document.getElementById("username");
+        userInput.addEventListener("change", function() {
+            let jsonData = {};
+            jsonData["action"] = "username";
+            jsonData["username"] = this.value;
+            socket.send(JSON.stringify(jsonData));
+        })
+
+        document.getElementById("startBtn").addEventListener("click", function() {
+            let jsonData = {};
+            jsonData["action"] = "start";
+            socket.send(JSON.stringify(jsonData));
+            document.getElementById("startBtn").style.display = "none";
+        })
+    })
+</script>
+</html>

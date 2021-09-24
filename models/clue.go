@@ -4,7 +4,7 @@ import "errors"
 
 type Clue struct {
 	PlayerID int
-	Word string
+	Word     string
 }
 
 func AssignClueWord(clue *Clue, players []*Player, dummies []*Dummy) (map[int][]int, error) {
@@ -17,7 +17,7 @@ func AssignClueWord(clue *Clue, players []*Player, dummies []*Dummy) (map[int][]
 			}
 			if byte(letter) == player.PlayerWord[player.GuessIdx] {
 				if val, ok := assignments[player.ID]; ok { // if player letter already given word idx token
-					newValue := append(val, i + 1)
+					newValue := append(val, i+1)
 					assignments[player.ID] = newValue
 				} else {
 					assignments[player.ID] = []int{i + 1} // give player letter its first idx token
@@ -34,7 +34,7 @@ func AssignClueWord(clue *Clue, players []*Player, dummies []*Dummy) (map[int][]
 		for _, dummy := range dummies {
 			if byte(letter) == dummy.Letter {
 				if val, ok := assignments[dummy.ID]; ok { // if dummy letter already given word idx token
-					newValue := append(val, i + 1)
+					newValue := append(val, i+1)
 					assignments[dummy.ID] = newValue
 				} else {
 					assignments[dummy.ID] = []int{i + 1} // give dummy letter its first idx token
