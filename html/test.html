@@ -32,7 +32,8 @@
                 <input type="text" name="username" id="username" class="form-control" autocomplete="off">
             </div>
 
-            <a href="javascript:void(0);" class="btn btn-outline-secondary" id="startBtn">Start Game</a>
+<!--            <a href="javascript:void(0);" class="btn btn-outline-secondary" id="startBtn">Start Game</a>-->
+            <button type="button" class="btn btn-outline-secondary" id="startBtn" onclick="startGame()">Start Game</button>
 
             <input type="hidden" name="action" id="action">
 
@@ -48,17 +49,32 @@
     </div>
 
     <hr>
-
-    <h3>Game</h3>
-    <div id="players" class="card-deck">
-        <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
-            <div class="card-body">
-                <h5 class="card-title">A</h5>
+    <div class="row">
+        <h3>Game</h3>
+        <div class="col">
+            <h4>Players</h4>
+            <div id="players" class="card-deck">
+                <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
+                    <div class="card-body">
+                        <h5 class="card-title">A</h5>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <div class="col">
+            <h4>Dummies</h4>
+            <div id="dummies" class="card-deck">
+                <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
+                    <div class="card-body">
+                        <h5 class="card-title">A</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
-    <div id="dummies" class="card-deck"></div>
 </div>
 
 </body>
@@ -110,6 +126,9 @@
                     }
                     break;
                 case "player_beginning_display":
+                    // disable start btn for all
+                    document.getElementById("startBtn").disabled = true;
+
                     let players = document.getElementById("players")
                     while (players.firstChild) players.removeChild(players.firstChild)
 
@@ -148,12 +167,19 @@
             socket.send(JSON.stringify(jsonData));
         })
 
-        document.getElementById("startBtn").addEventListener("click", function() {
-            let jsonData = {};
-            jsonData["action"] = "start";
-            socket.send(JSON.stringify(jsonData));
-            document.getElementById("startBtn").style.display = "none";
-        })
+        // document.getElementById("startBtn").addEventListener("click", function() {
+        //     let jsonData = {};
+        //     jsonData["action"] = "start";
+        //     socket.send(JSON.stringify(jsonData));
+        //     document.getElementById("startBtn").disabled = true;
+        // })
     })
+
+    function startGame() {
+        let jsonData = {};
+        jsonData["action"] = "start";
+        socket.send(JSON.stringify(jsonData));
+        document.getElementById("startBtn").disabled = true;
+    }
 </script>
 </html>
