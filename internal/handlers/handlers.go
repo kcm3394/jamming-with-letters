@@ -27,6 +27,7 @@ var (
 	clients = make(map[WebSocketConnection]*models.Player)
 	started = false
 	dummies []*models.Dummy
+	playersSubmitted = 0
 )
 
 type WebSocketConnection struct {
@@ -135,12 +136,7 @@ func ListenToWsChannel() {
 		case "start":
 			started = true
 			startGame(clients, 4) //TODO hard-coded word length
-			for conn, client := range clients {
-				response := getPlayerDisplay(client.ID, nil)
-				response.ConnectedUsers = getUserList()
-				sendDisplayMsgToOnePlayer(response, conn)
-			}
-			broadcastDisplayToAll(getDummyDisplay(nil))
+			displayCardsAndTokens(nil)
 			break
 		case "clue":
 			log.Println(e.Message)
@@ -156,18 +152,50 @@ func ListenToWsChannel() {
 				break
 			}
 
-			for conn, client := range clients {
-				response := getPlayerDisplay(client.ID, assignments)
-				response.ConnectedUsers = getUserList()
-				sendDisplayMsgToOnePlayer(response, conn)
-			}
-			broadcastDisplayToAll(getDummyDisplay(assignments))
+			displayCardsAndTokens(assignments)
 			broadcastToAll(WsJsonResponse{
 				Action:         "disable-clue",
 			})
 			break
+		case "letter":
+			log.Println(e.Message, clients[e.Conn])
+			if len(e.Message) != 1 && e.Message != "skip" {
+				response.Action = "error"
+				response.Message = "Your letter is not a single letter or the word 'skip'. Please try again."
+				sendMsgToOnePlayer(response, e.Conn)
+				break
+			}
+
+			if e.Message != "skip" {
+				saveGuessedLetter(strings.ToUpper(e.Message), clients[e.Conn])
+			}
+
+			playersSubmitted++
+			if playersSubmitted == len(clients) {
+				playersSubmitted = 0
+				displayCardsAndTokens(nil)
+				broadcastToAll(WsJsonResponse{
+					Action:         "disable-guess",
+				})
+			}
+			break
 		}
 	}
+}
+
+func displayCardsAndTokens(assignments map[int][]int) {
+	for conn, client := range clients {
+		response := getPlayerDisplay(client.ID, assignments)
+		response.ConnectedUsers = getUserList()
+		sendDisplayMsgToOnePlayer(response, conn)
+	}
+	broadcastDisplayToAll(getDummyDisplay(assignments))
+}
+
+func saveGuessedLetter(letter string, player *models.Player) {
+	player.GuessedWord[player.GuessIdx] = letter[0]
+	player.GuessIdx = player.GuessIdx + 1
+	log.Printf("Player %d guessed - new idx is %d. Guessed word so far is %s", player.ID, player.GuessIdx, player.GuessedWord)
 }
 
 func getUserList() []string {
@@ -257,6 +285,15 @@ func getDummyDisplay(assignments map[int][]int) WsJsonDisplay {
 }
 
 func sendDisplayMsgToOnePlayer(response WsJsonDisplay, conn WebSocketConnection) {
+	err := conn.WriteJSON(response)
+	if err != nil {
+		log.Println("websocket err")
+		_ = conn.Close()
+		delete(clients, conn)
+	}
+}
+
+func sendMsgToOnePlayer(response WsJsonResponse, conn WebSocketConnection) {
 	err := conn.WriteJSON(response)
 	if err != nil {
 		log.Println("websocket err")
