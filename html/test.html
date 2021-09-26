@@ -168,6 +168,11 @@
                     document.getElementById("clue-div").style.display = "block";
                     document.getElementById("clue").value = "";
 
+                    // re-enable guess your letter buttons and clear previous input
+                    document.getElementById("letterBtn").disabled = false;
+                    document.getElementById("skipBtn").disabled = false;
+                    document.getElementById("letter").value = "";
+
                     let players = document.getElementById("players")
                     while (players.firstChild) players.removeChild(players.firstChild)
 
