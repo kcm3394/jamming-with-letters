@@ -27,13 +27,12 @@
     <div class="row">
         <div class="col-md-3">
 
-            <div class="form-group">
+            <div class="form-group mb-2">
                 <label for="username">Username:</label>
                 <input type="text" name="username" id="username" class="form-control" autocomplete="off">
             </div>
 
-<!--            <a href="javascript:void(0);" class="btn btn-outline-secondary" id="startBtn">Start Game</a>-->
-            <button type="button" class="btn btn-outline-secondary" id="startBtn" onclick="startGame()">Start Game</button>
+            <button type="button" class="btn btn-outline-secondary mb-2" id="startBtn" onclick="startGame()">Start Game</button>
 
             <input type="hidden" name="action" id="action">
 
@@ -56,7 +55,17 @@
             <div id="players" class="card-deck">
                 <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
                     <div class="card-body">
+                        <h5 class="card-title">J</h5>
+                    </div>
+                </div>
+                <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
+                    <div class="card-body">
                         <h5 class="card-title">A</h5>
+                    </div>
+                </div>
+                <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
+                    <div class="card-body">
+                        <h5 class="card-title">M</h5>
                     </div>
                 </div>
             </div>
@@ -67,12 +76,34 @@
             <div id="dummies" class="card-deck">
                 <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
                     <div class="card-body">
+                        <h5 class="card-title">J</h5>
+                    </div>
+                </div>
+                <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
+                    <div class="card-body">
                         <h5 class="card-title">A</h5>
+                    </div>
+                </div>
+                <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">
+                    <div class="card-body">
+                        <h5 class="card-title">M</h5>
                     </div>
                 </div>
             </div>
         </div>
 
+    </div>
+
+    <div id="clue-div" class="row">
+        <hr>
+        <h3>Give a Clue</h3>
+        <div class="form-inline">
+            <div class="form-group col-xs-5 col-lg-5 mb-2">
+                <label for="clue">Clue:</label>
+                <input type="text" name="clue" id="clue" class="form-control" autocomplete="off">
+            </div>
+            <button type="button" class="btn btn-outline-secondary mb-2" id="clueBtn" onclick="submitClue()">Submit Clue</button>
+        </div>
     </div>
 
 </div>
@@ -125,7 +156,7 @@
                         })
                     }
                     break;
-                case "player_beginning_display":
+                case "player_display":
                     // disable start btn for all
                     document.getElementById("startBtn").disabled = true;
 
@@ -137,12 +168,12 @@
                             let card = document.createElement('div');
                             card.className = 'card text-white bg-dark mb-3 text-center';
                             card.style.width = "5rem"
-                            card.innerHTML = `<div class="card-body"><h5 class="card-title">` + item.letter + `</h5></div>`
+                            card.innerHTML = `<div class="card-body"><h5 class="card-title">` + item.letter + ` ` + item.token + `</h5></div>`
                             players.appendChild(card)
                         })
                     }
                     break;
-                case "dummy_beginning_display":
+                case "dummy_display":
                     let dummies = document.getElementById("dummies")
                     while (dummies.firstChild) dummies.removeChild(dummies.firstChild)
 
@@ -151,10 +182,13 @@
                             let card = document.createElement('div');
                             card.className = 'card text-white bg-dark mb-3 text-center';
                             card.style.width = "5rem"
-                            card.innerHTML = `<div class="card-body"><h5 class="card-title">` + item.letter + `</h5></div>`
+                            card.innerHTML = `<div class="card-body"><h5 class="card-title">` + item.letter + ` ` + item.token + `</h5></div>`
                             dummies.appendChild(card)
                         })
                     }
+                    break;
+                case "disable-clue":
+                    document.getElementById("clueBtn").disabled = true;
                     break;
             }
         }
@@ -166,20 +200,29 @@
             jsonData["username"] = this.value;
             socket.send(JSON.stringify(jsonData));
         })
-
-        // document.getElementById("startBtn").addEventListener("click", function() {
-        //     let jsonData = {};
-        //     jsonData["action"] = "start";
-        //     socket.send(JSON.stringify(jsonData));
-        //     document.getElementById("startBtn").disabled = true;
-        // })
     })
 
     function startGame() {
         let jsonData = {};
         jsonData["action"] = "start";
         socket.send(JSON.stringify(jsonData));
-        document.getElementById("startBtn").disabled = true;
+    }
+
+    function submitClue() {
+        let userInput = document.getElementById("clue").value;
+        console.log(userInput);
+        let jsonData = {};
+        jsonData["action"] = "clue";
+        jsonData['message'] = userInput
+        socket.send(JSON.stringify(jsonData));
     }
 </script>
 </html>
+
+<!--<div id="players" class="card-deck">-->
+<!--    <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">-->
+<!--        <div class="card-body">-->
+<!--            <h5 class="card-title">A</h5>-->
+<!--        </div>-->
+<!--    </div>-->
+<!--</div>-->

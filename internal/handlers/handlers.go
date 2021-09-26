@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/kcm3394/jamming-with-letters/models"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 var (
@@ -41,6 +43,7 @@ type WsJsonResponse struct {
 type Display struct {
 	ID     string `json:"id"`
 	Letter string `json:"letter"`
+	Token  string `json:"token"`
 }
 
 type WsJsonDisplay struct {
@@ -133,11 +136,35 @@ func ListenToWsChannel() {
 			started = true
 			startGame(clients, 4) //TODO hard-coded word length
 			for conn, client := range clients {
-				response := getPlayerDisplay(client.ID)
+				response := getPlayerDisplay(client.ID, nil)
 				response.ConnectedUsers = getUserList()
 				sendDisplayMsgToOnePlayer(response, conn)
 			}
-			broadcastDisplayToAll(getDummyDisplay())
+			broadcastDisplayToAll(getDummyDisplay(nil))
+			break
+		case "clue":
+			log.Println(e.Message)
+			clue := models.Clue{
+				PlayerID: clients[e.Conn].ID,
+				Word:     strings.ToUpper(e.Message),
+			}
+			assignments, err := assignClueWord(&clue)
+			if err != nil {
+				response.Action = "error"
+				response.Message = "Your clue does not match available letters. Please try again."
+				broadcastToAll(response)
+				break
+			}
+
+			for conn, client := range clients {
+				response := getPlayerDisplay(client.ID, assignments)
+				response.ConnectedUsers = getUserList()
+				sendDisplayMsgToOnePlayer(response, conn)
+			}
+			broadcastDisplayToAll(getDummyDisplay(assignments))
+			broadcastToAll(WsJsonResponse{
+				Action:         "disable-clue",
+			})
 			break
 		}
 	}
@@ -176,22 +203,27 @@ func broadcastDisplayToAll(response WsJsonDisplay) {
 	}
 }
 
-func getPlayerDisplay(currentPlayerID int) WsJsonDisplay {
+func getPlayerDisplay(currentPlayerID int, assignments map[int][]int) WsJsonDisplay {
 	var response WsJsonDisplay
-	response.Action = "player_beginning_display"
+	response.Action = "player_display"
 	displayMsg := make([]Display, len(clients))
 
 	for _, client := range clients {
-		if client.ID == currentPlayerID {
-			displayMsg[client.ID - 1] = Display{
-				ID: strconv.Itoa(client.ID),
-				Letter: "?",
-			}
-			continue
-		}
 		displayMsg[client.ID - 1] = Display{
 			ID:     strconv.Itoa(client.ID),
 			Letter: string(client.PlayerWord[client.GuessIdx]),
+		}
+		if assignments != nil {
+			if val, ok := assignments[client.ID]; ok {
+				sb := strings.Builder{}
+				for _, token := range val {
+					sb.Write([]byte(fmt.Sprintf("(%d)", token)))
+				}
+				displayMsg[client.ID - 1].Token = sb.String()
+			}
+		}
+		if client.ID == currentPlayerID {
+			displayMsg[client.ID - 1].Letter = "?"
 		}
 	}
 
@@ -199,15 +231,24 @@ func getPlayerDisplay(currentPlayerID int) WsJsonDisplay {
 	return response
 }
 
-func getDummyDisplay() WsJsonDisplay {
+func getDummyDisplay(assignments map[int][]int) WsJsonDisplay {
 	var response WsJsonDisplay
-	response.Action = "dummy_beginning_display"
+	response.Action = "dummy_display"
 	displayMsg := make([]Display, len(dummies))
 
 	for i, dummy := range dummies {
 		displayMsg[i] = Display{
 			ID:     strconv.Itoa(dummy.ID),
 			Letter: string(dummy.Letter),
+		}
+		if assignments != nil {
+			if val, ok := assignments[dummy.ID]; ok {
+				sb := strings.Builder{}
+				for _, token := range val {
+					sb.Write([]byte(fmt.Sprintf("(%d)", token)))
+				}
+				displayMsg[i].Token = sb.String()
+			}
 		}
 	}
 
@@ -277,3 +318,47 @@ func initializePlayers(deck map[byte]int, players map[WebSocketConnection]*model
 	}
 }
 
+func assignClueWord(clue *models.Clue) (map[int][]int, error) {
+	assignments := make(map[int][]int) // player ID -> word indicies
+	for i, letter := range clue.Word {
+		assigned := false
+		for _, player := range clients {
+			if player.ID == clue.PlayerID {
+				continue
+			}
+			if byte(letter) == player.PlayerWord[player.GuessIdx] {
+				if val, ok := assignments[player.ID]; ok { // if player letter already given word idx token
+					newValue := append(val, i+1)
+					assignments[player.ID] = newValue
+				} else {
+					assignments[player.ID] = []int{i + 1} // give player letter its first idx token
+				}
+				assigned = true
+				break
+			}
+		}
+
+		if assigned {
+			continue
+		}
+
+		for _, dummy := range dummies {
+			if byte(letter) == dummy.Letter {
+				if val, ok := assignments[dummy.ID]; ok { // if dummy letter already given word idx token
+					newValue := append(val, i+1)
+					assignments[dummy.ID] = newValue
+				} else {
+					assignments[dummy.ID] = []int{i + 1} // give dummy letter its first idx token
+				}
+				assigned = true
+				break
+			}
+		}
+
+		if !assigned {
+			return nil, errors.New("word does not match available letters")
+		}
+	}
+
+	return assignments, nil
+}
