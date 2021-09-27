@@ -8,6 +8,7 @@ type Player struct {
 	PlayerWord  string
 	GuessedWord []byte
 	GuessIdx    int
+	BonusLetter byte
 }
 
 type Dummy struct {
@@ -28,6 +29,16 @@ func InitializeDummies(deck map[byte]int, playerCount int) []*Dummy {
 	//		deck[AvailableLetters[j]] = deck[AvailableLetters[j]] - 1
 	//	}
 	//}
+	dummies = append(dummies, &Dummy{
+		ID:     3,
+		Letter: 'K',
+	})
+	deck['K'] = deck['K'] - 1
+	dummies = append(dummies, &Dummy{
+		ID:     4,
+		Letter: 'I',
+	})
+	deck['I'] = deck['I'] - 1
 	dummies = append(dummies, &Dummy{
 		ID:     5,
 		Letter: 'M',

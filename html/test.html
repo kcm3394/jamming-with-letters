@@ -30,8 +30,6 @@
 
             <button type="button" class="btn btn-outline-secondary mb-4" id="startBtn" onclick="startGame()">Start Game</button>
 
-            <input type="hidden" name="action" id="action">
-
         </div>
         <div class="col-md-5">
             <h3>Who's Playing</h3>
@@ -42,7 +40,7 @@
     </div>
 
     <hr>
-    <div class="row">
+    <div id="game-div" class="row">
         <h3>Game</h3>
         <div class="col">
             <h4>Players</h4>
@@ -93,7 +91,8 @@
         <h3>Give a Clue</h3>
         <form>
             <div class="form-group col-xs-5 col-lg-5 mb-2">
-                <input type="text" name="clue" id="clue" class="form-control" autocomplete="off" placeholder="Clue" minlength="3">
+                <label for="clue"></label>
+                <input type="text" name="clue" id="clue" class="form-control" autocomplete="off" placeholder="Clue">
             </div>
             <button type="button" class="btn btn-outline-secondary mb-4" id="clueBtn" onclick="submitClue()">Submit Clue</button>
         </form>
@@ -104,11 +103,19 @@
         <h3>Guess Your Letter</h3>
         <form>
             <div class="form-group col-xs-5 col-lg-5 mb-2">
+                <label for="letter"></label>
                 <input type="text" name="letter" id="letter" class="form-control" autocomplete="off" placeholder="Letter" maxlength="4">
             </div>
             <button type="button" class="btn btn-outline-secondary mb-4" id="letterBtn" onclick="submitLetter()">Submit Letter</button>
             <button type="button" class="btn btn-outline-secondary mb-4" id="skipBtn" onclick="skipGuess()">Skip Guess</button>
         </form>
+    </div>
+
+    <div id="end-game-div" class="row" style="display: none">
+        <h3>Thanks for jamming!</h3>
+        <div id="end-game-display">
+
+        </div>
     </div>
 
 </div>
@@ -164,14 +171,8 @@
                 case "player_display":
                     // disable start btn for all
                     document.getElementById("startBtn").disabled = true;
-                    // show clue div for all and clear any previous input
-                    document.getElementById("clue-div").style.display = "block";
-                    document.getElementById("clue").value = "";
-
-                    // re-enable guess your letter buttons and clear previous input
-                    document.getElementById("letterBtn").disabled = false;
-                    document.getElementById("skipBtn").disabled = false;
-                    document.getElementById("letter").value = "";
+                    resetClueBlock()
+                    resetGuessBlock()
 
                     let players = document.getElementById("players")
                     while (players.firstChild) players.removeChild(players.firstChild)
@@ -207,6 +208,25 @@
                 case "disable-guess":
                     document.getElementById("guess-div").style.display = "none";
                     break;
+                case "display-end-game":
+                    document.getElementById("clue-div").style.display = "none";
+                    document.getElementById("guess-div").style.display = "none";
+                    document.getElementById("game-div").style.display = "none";
+                    document.getElementById("end-game-div").style.display = "block";
+                    const display = document.getElementById("end-game-display");
+                    display.style.display = "block";
+
+                    if (data.display_msg.length > 0) {
+                        data.display_msg.forEach((item) => {
+                            let header = document.createElement('h4');
+                            header.innerText = "Player " + item.id
+                            display.appendChild(header);
+                            let p = document.createElement('p')
+                            p.innerText = "You guessed: " + item.guessed_word + " and your word was " + item.player_word;
+                            display.appendChild(p)
+                        })
+                    }
+                    break;
             }
         }
 
@@ -234,6 +254,11 @@
         socket.send(JSON.stringify(jsonData));
     }
 
+    function resetClueBlock() {
+        document.getElementById("clue-div").style.display = "block";
+        document.getElementById("clue").value = "";
+    }
+
     function submitLetter() {
         let userInput = document.getElementById("letter").value;
         console.log(userInput);
@@ -244,6 +269,14 @@
         document.getElementById("letterBtn").innerText = "Submitted"
         document.getElementById("letterBtn").disabled = true;
         document.getElementById("skipBtn").disabled = true;
+    }
+
+    function resetGuessBlock() {
+        document.getElementById("letterBtn").disabled = false;
+        document.getElementById("skipBtn").disabled = false;
+        document.getElementById("letter").value = "";
+        document.getElementById("letterBtn").innerText = "Submit Letter"
+        document.getElementById("skipBtn").innerText = "Skip Guess"
     }
 
     function skipGuess() {
@@ -257,11 +290,3 @@
     }
 </script>
 </html>
-
-<!--<div id="players" class="card-deck">-->
-<!--    <div class="card text-white bg-dark mb-3 text-center" style="width: 5rem;">-->
-<!--        <div class="card-body">-->
-<!--            <h5 class="card-title">A</h5>-->
-<!--        </div>-->
-<!--    </div>-->
-<!--</div>-->

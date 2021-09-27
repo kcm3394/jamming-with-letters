@@ -23,11 +23,13 @@ var (
 			return true
 		},
 	}
-	wsChan  = make(chan WsPayload)
-	clients = make(map[WebSocketConnection]*models.Player)
-	started = false
-	dummies []*models.Dummy
+	wsChan           = make(chan WsPayload)
+	clients          = make(map[WebSocketConnection]*models.Player)
+	started          = false
+	dummies          []*models.Dummy
 	playersSubmitted = 0
+	deck             map[byte]int
+	wordLength       = 3 //TODO hard-coded word length
 )
 
 type WebSocketConnection struct {
@@ -52,6 +54,19 @@ type WsJsonDisplay struct {
 	DisplayMsg     []Display `json:"display_msg"`
 	MessageType    string    `json:"message_type"`
 	ConnectedUsers []string  `json:"connected_users"`
+}
+
+type EndGameDisplay struct {
+	ID          string `json:"id"`
+	PlayerWord  string `json:"player_word"`
+	GuessedWord string `json:"guessed_word"`
+}
+
+type WsJsonEndGame struct {
+	Action         string           `json:"action"`
+	DisplayMsg     []EndGameDisplay `json:"display_msg"`
+	MessageType    string           `json:"message_type"`
+	ConnectedUsers []string         `json:"connected_users"`
 }
 
 type WsPayload struct {
@@ -135,7 +150,7 @@ func ListenToWsChannel() {
 			break
 		case "start":
 			started = true
-			startGame(clients, 4) //TODO hard-coded word length
+			startGame(clients, wordLength)
 			displayCardsAndTokens(nil)
 			break
 		case "clue":
@@ -154,8 +169,11 @@ func ListenToWsChannel() {
 
 			displayCardsAndTokens(assignments)
 			broadcastToAll(WsJsonResponse{
-				Action:         "disable-clue",
+				Action: "disable-clue",
 			})
+
+			//prepare for next round, should not affect current display if called after displayCardsAndTokens
+			models.UpdateDummies(deck, dummies, assignments)
 			break
 		case "letter":
 			log.Println(e.Message, clients[e.Conn])
@@ -172,15 +190,49 @@ func ListenToWsChannel() {
 
 			playersSubmitted++
 			if playersSubmitted == len(clients) {
+				// start new round
 				playersSubmitted = 0
+				// check end game condition
+				if isGameEnd() {
+					response := getEndGameDisplay()
+					broadcastEndGameDisplayToAll(response)
+					break
+				}
 				displayCardsAndTokens(nil)
 				broadcastToAll(WsJsonResponse{
-					Action:         "disable-guess",
+					Action: "disable-guess",
 				})
 			}
 			break
 		}
 	}
+}
+
+func getEndGameDisplay() WsJsonEndGame {
+	response := WsJsonEndGame{
+		Action:     "display-end-game",
+		DisplayMsg: make([]EndGameDisplay, len(clients)),
+	}
+
+	for _, client := range clients {
+		playerDisplay := EndGameDisplay{
+			ID:          strconv.Itoa(client.ID),
+			PlayerWord:  client.PlayerWord,
+			GuessedWord: string(client.GuessedWord),
+		}
+		response.DisplayMsg[client.ID-1] = playerDisplay
+	}
+
+	return response
+}
+
+func isGameEnd() bool {
+	for _, client := range clients {
+		if client.GuessIdx < wordLength {
+			return false
+		}
+	}
+	return true
 }
 
 func displayCardsAndTokens(assignments map[int][]int) {
@@ -193,8 +245,23 @@ func displayCardsAndTokens(assignments map[int][]int) {
 }
 
 func saveGuessedLetter(letter string, player *models.Player) {
+	if player.GuessIdx == wordLength {
+		// player has already guessed all letters
+		player.BonusLetter = models.GetRandomCardFromDeck(deck)
+		log.Printf("New bonus letter assigned to player %d", player.ID)
+		return
+	}
+
 	player.GuessedWord[player.GuessIdx] = letter[0]
 	player.GuessIdx = player.GuessIdx + 1
+
+	// player just finished guessing their word
+	if player.GuessIdx == wordLength {
+		player.BonusLetter = models.GetRandomCardFromDeck(deck)
+		log.Printf("New bonus letter assigned to player %d", player.ID)
+		return
+	}
+
 	log.Printf("Player %d guessed - new idx is %d. Guessed word so far is %s", player.ID, player.GuessIdx, player.GuessedWord)
 }
 
@@ -231,27 +298,47 @@ func broadcastDisplayToAll(response WsJsonDisplay) {
 	}
 }
 
+func broadcastEndGameDisplayToAll(response WsJsonEndGame) {
+	for client := range clients {
+		err := client.WriteJSON(response)
+		if err != nil {
+			log.Println("websocket err")
+			_ = client.Close()
+			delete(clients, client)
+		}
+	}
+}
+
 func getPlayerDisplay(currentPlayerID int, assignments map[int][]int) WsJsonDisplay {
 	var response WsJsonDisplay
 	response.Action = "player_display"
 	displayMsg := make([]Display, len(clients))
 
 	for _, client := range clients {
-		displayMsg[client.ID - 1] = Display{
-			ID:     strconv.Itoa(client.ID),
-			Letter: string(client.PlayerWord[client.GuessIdx]),
+		// if player on bonus letter
+		if client.GuessIdx >= wordLength {
+			displayMsg[client.ID-1] = Display{
+				ID:     strconv.Itoa(client.ID),
+				Letter: string(client.BonusLetter),
+			}
+		} else {
+			displayMsg[client.ID-1] = Display{
+				ID:     strconv.Itoa(client.ID),
+				Letter: string(client.PlayerWord[client.GuessIdx]),
+			}
 		}
+
 		if assignments != nil {
 			if val, ok := assignments[client.ID]; ok {
 				sb := strings.Builder{}
 				for _, token := range val {
 					sb.Write([]byte(fmt.Sprintf("(%d)", token)))
 				}
-				displayMsg[client.ID - 1].Token = sb.String()
+				displayMsg[client.ID-1].Token = sb.String()
 			}
 		}
 		if client.ID == currentPlayerID {
-			displayMsg[client.ID - 1].Letter = "?"
+			displayMsg[client.ID-1].Letter = "?"
 		}
 	}
 
@@ -309,7 +396,7 @@ func startGame(clients map[WebSocketConnection]*models.Player, wordLength int) {
 	//	return
 	//}
 
-	deck := models.InitializeDeck()
+	deck = models.InitializeDeck()
 	//players := models.InitializePlayers(deck, *playerCount, dictionary)
 	initializePlayers(deck, clients, wordLength)
 	dummies = models.InitializeDummies(deck, len(clients))
@@ -340,7 +427,7 @@ func loadDictionary() ([]string, error) {
 }
 
 func initializePlayers(deck map[byte]int, players map[WebSocketConnection]*models.Player, wordLength int) {
-	testWords := []string{"KEPT", "GALE", "SHOE", "HERB"}
+	testWords := []string{"CAT", "BOT"}
 	id := 1
 	for _, player := range players {
 		player.ID = id
@@ -348,6 +435,7 @@ func initializePlayers(deck map[byte]int, players map[WebSocketConnection]*model
 		player.PlayerWord = testWords[id-1]
 		player.GuessedWord = make([]byte, wordLength)
 		player.GuessIdx = 0
+		player.BonusLetter = 0
 
 		fmt.Println(player.PlayerWord)
 		models.UpdateDeck(deck, player.PlayerWord)
