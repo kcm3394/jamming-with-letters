@@ -125,25 +125,26 @@ func ListenForWs(conn *WebSocketConnection) {
 }
 
 func ListenToWsChannel() {
-	var response WsJsonResponse
-
 	for {
 		e := <-wsChan
 
 		switch e.Action {
 		case "username":
+			var response WsJsonResponse
 			clients[e.Conn].Username = e.Username
 			response.Action = "list_users"
 			response.ConnectedUsers = getUserList()
 			broadcastToAll(response)
 			break
 		case "left":
+			var response WsJsonResponse
 			response.Action = "list_users"
 			delete(clients, e.Conn)
 			response.ConnectedUsers = getUserList()
 			broadcastToAll(response)
 			break
 		case "broadcast":
+			var response WsJsonResponse
 			response.Action = "broadcast"
 			response.Message = fmt.Sprintf("<strong>%s</strong>: %s", e.Username, e.Message)
 			broadcastToAll(response)
@@ -154,6 +155,7 @@ func ListenToWsChannel() {
 			displayCardsAndTokens(nil)
 			break
 		case "clue":
+			var response WsJsonResponse
 			log.Println(e.Message)
 			clue := models.Clue{
 				PlayerID: clients[e.Conn].ID,
@@ -163,6 +165,7 @@ func ListenToWsChannel() {
 			if err != nil {
 				response.Action = "error"
 				response.Message = "Your clue does not match available letters. Please try again."
+				log.Println("Your clue does not match available letters. Please try again.")
 				broadcastToAll(response)
 				break
 			}
@@ -176,6 +179,7 @@ func ListenToWsChannel() {
 			models.UpdateDummies(deck, dummies, assignments)
 			break
 		case "letter":
+			var response WsJsonResponse
 			log.Println(e.Message, clients[e.Conn])
 			if len(e.Message) != 1 && e.Message != "skip" {
 				response.Action = "error"
